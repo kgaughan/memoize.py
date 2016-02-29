@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 
+import argparse
 import cPickle
-import getopt
 import hashlib
 import os
 import os.path
@@ -152,13 +152,19 @@ def memoize(cmd, depsname='.deps'):
 
 
 def main():
-    opts, cmd = getopt.getopt(sys.argv[1:], 'td:')
-    cmd = tuple(cmd)
-    for opt, value in opts:
-        if opt == '-t':
-            set_use_modtime(True)
-        elif opt == '-d':
-            add_relevant_dir(value)
+    parser = argparse.ArgumentParser(
+        description="Record a command's dependencies, skip if they did not change")
+    parser.add_argument("command", nargs='+', help='The command to run')
+    parser.add_argument("--use-hash", action='store_true')
+    parser.add_argument("--no-use-hash", dest='use_hash', action='store_false')
+    parser.add_argument("-d", "--relevant-dir", action='append', default=[])
+    parser.set_defaults(use_hash=True)
+
+    args = parser.parse_args()
+
+    cmd = tuple(args.command)
+    set_use_modtime(not args.use_hash)
+    add_relevant_dir(args.relevant_dir)
 
     return memoize(cmd)
 
