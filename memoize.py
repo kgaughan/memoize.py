@@ -89,7 +89,8 @@ def is_relevant(fname):
 def generate_deps(cmd, test):
     print('running', cmd)
 
-    outfile = tempfile.mktemp()
+    outfile = os.path.join(tempfile.mkdtemp(), "pipe")
+    os.mkfifo(outfile)
     # TODO: Detect solaris and use truss instead and verify parsing of its
     # output format
     trace_command = ['strace',
@@ -98,12 +99,10 @@ def generate_deps(cmd, test):
                      '-o', outfile,
                      '--']
     trace_command.extend(cmd)
-    status = subprocess.call(trace_command)
-    output = open(outfile).readlines()
-    os.remove(outfile)
+    p = subprocess.Popen(trace_command)
 
     files = {}
-    for line in output:
+    for line in open(outfile):
         match = re.match(strace_re, line)
 
         if not match:
@@ -115,6 +114,9 @@ def generate_deps(cmd, test):
             if (fname not in files and os.path.isfile(fname) and
                     is_relevant(fname)):
                 files[fname] = test(fname)
+
+    status = p.wait()
+    os.remove(outfile)
 
     return (status, files)
 
