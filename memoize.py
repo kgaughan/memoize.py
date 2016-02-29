@@ -35,7 +35,7 @@ strace_re = re.compile(r"""
       "
   |
       # Irrelevant syscalls
-      (?: utimensat )
+      (?: utimensat | statfs )
       \(
   |
       # A continuation line
