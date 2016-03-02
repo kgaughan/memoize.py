@@ -69,12 +69,12 @@ files to a separate location. Much of this functionality is hard to get
 right in make. Python makes this stuff easy, since it has good built-in
 support for string processing and file handling.
 
-As an example, `here <build.py>`_ is an example build script used in a
-real ocaml project. It builds source code from two directories and puts
-the output in an `obj/` directory. It supports both the bytecode and the
-native code compiler, and it has functionality analogous to `make clean`.
-It uses a few Python functions that could be abstracted into a library,
-which is a good way of writing these scripts.
+As an example, `here <examples/build.py>`_ is an example build script used in a
+real ocaml project. It builds source code from two directories and puts the
+output in an `obj/` directory. It supports both the bytecode and the native
+code compiler, and it has functionality analogous to `make clean`. It uses a
+few Python functions that could be abstracted into a library, which is a good
+way of writing these scripts.
 
 In my experience, writing build scripts in a more imperative fashion is
 easier than doing it declaratively. Declarative designs typically rely
