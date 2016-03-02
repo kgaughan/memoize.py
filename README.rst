@@ -1,5 +1,8 @@
 Original at http://www.eecs.berkeley.edu/~billm/memoize.html
 
+For the first commit, which includes the pristine script without any
+modernisations, see: https://github.com/kgaughan/memoize.py/tree/classic
+
 =======
 Memoize
 =======
