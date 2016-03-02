@@ -1,16 +1,17 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
-
 import argparse
 import cPickle
 import hashlib
+import logging
 import os
 import os.path
 import re
 import subprocess
 import sys
 import tempfile
+
+from six.moves import shlex_quote
 
 
 # If set, use modification time instead of MD5-sum as check
@@ -76,8 +77,11 @@ def modtime(fname):
 
 
 def files_up_to_date(files, test):
-    return all(test(fname) != value
-               for fname, value in files.iteritems())
+    for fname, value in files.iteritems():
+        if test(fname) != value:
+            logging.debug("Not up to date: %s", shlex_quote(fname))
+            return False
+    return True
 
 
 def is_relevant(fname):
@@ -86,8 +90,12 @@ def is_relevant(fname):
                for d in opt_dirs)
 
 
+def cmd_to_str(cmd):
+    return " ".join(shlex_quote(arg) for arg in cmd)
+
+
 def generate_deps(cmd, test):
-    print('running', cmd)
+    logging.info('Running: %s', cmd_to_str(cmd))
 
     outfile = os.path.join(tempfile.mkdtemp(), "pipe")
     os.mkfifo(outfile)
@@ -106,8 +114,8 @@ def generate_deps(cmd, test):
         match = re.match(strace_re, line)
 
         if not match:
-            print("WARNING: failed to parse this line: " + line.rstrip("\n"),
-                  file=sys.stderr)
+            logging.warning("Failed to parse this line: %s",
+                            line.rstrip("\n"))
             continue
         if match.group("filename"):
             fname = os.path.normpath(match.group("filename"))
@@ -145,7 +153,7 @@ def memoize_with_deps(depsname, deps, cmd):
             del deps[cmd]
         write_deps(depsname, deps)
         return status
-    print('up to date:', cmd)
+    logging.info('Up to date: %s', cmd_to_str(cmd))
     return 0
 
 
@@ -160,6 +168,8 @@ def main():
     parser.add_argument("--use-hash", action='store_true')
     parser.add_argument("--no-use-hash", dest='use_hash', action='store_false')
     parser.add_argument("-d", "--relevant-dir", action='append', default=[])
+    parser.add_argument("--verbose", action='store_true')
+    parser.add_argument("--debug", action='store_true')
     parser.set_defaults(use_hash=True)
 
     args = parser.parse_args()
@@ -167,6 +177,10 @@ def main():
     cmd = tuple(args.command)
     set_use_modtime(not args.use_hash)
     add_relevant_dir(args.relevant_dir)
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    elif args.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     return memoize(cmd)
 
