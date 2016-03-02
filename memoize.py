@@ -16,6 +16,7 @@ import tempfile
 # If set, use modification time instead of MD5-sum as check
 opt_use_modtime = False
 opt_dirs = ['.']
+hasher = hashlib.md5
 
 
 SYS_CALLS = [
@@ -60,12 +61,11 @@ def add_relevant_dir(d):
     opt_dirs.append(d)
 
 
-def md5sum(fname):
-    try:
-        with open(fname, 'rb') as fh:
-            return hashlib.md5(fh.read()).hexdigest()
-    except:
-        return 'bad'
+def hashsum(fname):
+    if not os.path.isfile(fname):
+        return None
+    with open(fname, 'rb') as fh:
+        return hasher(fh.read()).digest()
 
 
 def modtime(fname):
@@ -135,9 +135,9 @@ def write_deps(fname, deps):
 
 
 def memoize_with_deps(depsname, deps, cmd):
-    files = deps.get(cmd, [('aaa', '')])
-    test = modtime if opt_use_modtime else md5sum
-    if not files_up_to_date(files, test):
+    files = deps.get(cmd)
+    test = modtime if opt_use_modtime else hashsum
+    if not files or not files_up_to_date(files, test):
         status, files = generate_deps(cmd, test)
         if status == 0:
             deps[cmd] = files
