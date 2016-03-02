@@ -1,11 +1,14 @@
-import sys
 import os
 import os.path
+import sys
+
 from memoize import memoize
+
 
 objs = []
 doopt = False
 doclean = False
+
 
 def run(cmd):
     if not doclean:
@@ -13,6 +16,7 @@ def run(cmd):
         if status:
             print >>sys.stderr, '*** FAILURE ***'
             sys.exit(status)
+
 
 def mlfile(fname):
     global objs
@@ -22,7 +26,8 @@ def mlfile(fname):
     if suffix == 'mli':
         obj = 'obj/' + prefix + '.cmi'
         run('ocamlc -c -I obj -o %s %s' % (obj, fname))
-        if doclean: objs.append(obj)
+        if doclean:
+            objs.append(obj)
     elif suffix == 'ml':
         if doopt:
             obj = 'obj/' + prefix + '.cmx'
@@ -32,17 +37,25 @@ def mlfile(fname):
             run('ocamlc -c -I obj -o %s %s' % (obj, fname))
         objs.append(obj)
     else:
-        if not doclean: objs.append(fname)
+        if not doclean:
+            objs.append(fname)
 
-def elkfile(fname): mlfile('elkhoundlib/' + fname)
+
+def elkfile(fname):
+    mlfile('elkhoundlib/' + fname)
+
 
 def libfile(libname):
-    if doopt: mlfile(libname + '.cmxa')
-    else: mlfile(libname + '.cma')
+    if doopt:
+        mlfile(libname + '.cmxa')
+    else:
+        mlfile(libname + '.cma')
+
 
 def clean(files):
     print 'rm -f', files
     os.system('rm -f ' + files)
+
 
 def build(opt, cln):
     global doopt, doclean, objs
@@ -80,18 +93,22 @@ def build(opt, cln):
     mlfile('obj/clexer.mli')
     mlfile('obj/clexer.ml')
 
-    if doclean: clean('obj/cparser.ml')
-    else: run('elkhound -ocaml -o obj/cparser cparser.gr; rm obj/cparser.mli')
+    if doclean:
+        clean('obj/cparser.ml')
+    else:
+        run('elkhound -ocaml -o obj/cparser cparser.gr; rm obj/cparser.mli')
 
     if opt:
         run("""bash -c 'export OCAMLRUNPARAM="l=2M";
                ocamlopt -c -I obj -o obj/cparser.cmx obj/cparser.ml'""")
-        if doclean: clean('obj/cparser.cmx')
+        if doclean:
+            clean('obj/cparser.cmx')
         mlfile('obj/cparser.cmx')
     else:
         run("""bash -c 'export OCAMLRUNPARAM="l=2M";
                ocamlc -c -I obj -o obj/cparser.cmo obj/cparser.ml'""")
-        if doclean: clean('obj/cparser.cmo')
+        if doclean:
+            clean('obj/cparser.cmo')
         mlfile('obj/cparser.cmo')
 
     mlfile('cprint.ml')
@@ -119,8 +136,10 @@ def build(opt, cln):
     mlfile('verify.ml')
     mlfile('main.ml')
 
-try: arg = sys.argv[1]
-except: arg = 'all'
+try:
+    arg = sys.argv[1]
+except:
+    arg = 'all'
 
 if arg == 'byte' or arg == 'all':
     build(False, False)
