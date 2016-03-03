@@ -1,9 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+
 from __future__ import print_function
 
 import cPickle
-from getopt import getopt
-import md5
+import getopt
+import hashlib
 import os
 import os.path
 import re
@@ -51,6 +52,7 @@ strace_re = re.compile(r"""
 
 
 def set_use_modtime(use):
+    global opt_use_modtime
     opt_use_modtime = use
 
 
@@ -60,13 +62,10 @@ def add_relevant_dir(d):
 
 def md5sum(fname):
     try:
-        data = open(fname).read()
+        with open(fname, 'rb') as fh:
+            return hashlib.md5(fh.read()).hexdigest()
     except:
-        data = None
-
-    if data is None:
-        return 'bad'
-    return md5.new(data).hexdigest()
+        data = 'bad'
 
 
 def modtime(fname):
@@ -77,7 +76,7 @@ def modtime(fname):
 
 
 def files_up_to_date(files):
-    for (fname, md5, mtime) in files:
+    for fname, md5, mtime in files:
         if opt_use_modtime:
             if modtime(fname) != mtime:
                 return False
@@ -89,11 +88,8 @@ def files_up_to_date(files):
 
 def is_relevant(fname):
     path1 = os.path.abspath(fname)
-    for d in opt_dirs:
-        path2 = os.path.abspath(d)
-        if path1.startswith(path2):
-            return True
-    return False
+    return any(path1.startswith(os.path.abspath(d))
+               for d in opt_dirs)
 
 
 def generate_deps(cmd):
@@ -126,38 +122,31 @@ def generate_deps(cmd):
             continue
 
         fname = os.path.normpath(match.group("filename"))
-        if (is_relevant(fname) and os.path.isfile(fname)
-                and fname not in files_dict):
+        if (is_relevant(fname) and os.path.isfile(fname) and
+                fname not in files_dict):
             files.append((fname, md5sum(fname), modtime(fname)))
             files_dict[fname] = True
 
     return (status, files)
 
 
-def read_deps(depsname):
+def read_deps(fname):
     try:
-        f = open(depsname, 'rb')
+        with open(fname, 'rb') as fh:
+            return cPickle.load(fh)
     except:
-        f = None
-
-    if f:
-        deps = cPickle.load(f)
-        f.close()
-        return deps
-    else:
         return {}
 
 
-def write_deps(depsname, deps):
-    f = open(depsname, 'wb')
-    cPickle.dump(deps, f)
-    f.close()
+def write_deps(fname, deps):
+    with open(fname, 'wb') as fh:
+        cPickle.dump(deps, fh)
 
 
 def memoize_with_deps(depsname, deps, cmd):
     files = deps.get(cmd, [('aaa', '', '')])
     if not files_up_to_date(files):
-        (status, files) = generate_deps(cmd)
+        status, files = generate_deps(cmd)
         if status == 0:
             deps[cmd] = files
         elif cmd in deps:
@@ -168,16 +157,12 @@ def memoize_with_deps(depsname, deps, cmd):
     return 0
 
 
-default_depsname = '.deps'
-default_deps = read_deps(default_depsname)
-
-
-def memoize(cmd):
-    return memoize_with_deps(default_depsname, default_deps, cmd)
+def memoize(cmd, depsname='.deps'):
+    return memoize_with_deps(depsname, read_deps(depsname), cmd)
 
 
 if __name__ == '__main__':
-    (opts, cmd) = getopt(sys.argv[1:], 'td:')
+    opts, cmd = getopt.getopt(sys.argv[1:], 'td:')
     cmd = tuple(cmd)
     for (opt, value) in opts:
         if opt == '-t':
