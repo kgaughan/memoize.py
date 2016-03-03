@@ -65,7 +65,7 @@ def md5sum(fname):
         with open(fname, 'rb') as fh:
             return hashlib.md5(fh.read()).hexdigest()
     except:
-        data = 'bad'
+        return 'bad'
 
 
 def modtime(fname):
@@ -108,7 +108,6 @@ def generate_deps(cmd):
     output = open(outfile).readlines()
     os.remove(outfile)
 
-    status = 0
     files = []
     files_dict = {}
     for line in output:
