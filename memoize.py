@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from __future__ import print_function
 
 import cPickle
 from getopt import getopt
@@ -6,12 +7,38 @@ import md5
 import os
 import os.path
 import re
+import subprocess
 import sys
 import tempfile
 
 
 opt_use_modtime = False
 opt_dirs = ['.']
+
+strace_re = re.compile(r"""
+  (?: (?P<pid> \d+ ) \s+ ) ?
+  (?:
+      # Relevant syscalls
+      (?P<syscall> execve | access | open | stat | stat64 | lstat )
+      \( "
+      (?P<filename> (?: \\" | [^"] )* )
+      "
+  |
+      # Irrelevant syscalls
+      (?: utimensat )
+      \(
+  |
+      # A continuation line
+      <
+  |
+      # Signals
+      ---
+  |
+      # Exit
+      \+\+\+
+  )
+  .*
+  """, re.VERBOSE)
 
 
 def set_use_modtime(use):
@@ -61,12 +88,15 @@ def is_relevant(fname):
 
 
 def generate_deps(cmd):
-    print 'running', cmd
+    print('running', cmd)
 
     outfile = tempfile.mktemp()
-    os.system(
-        'strace -f -o %s -e trace=open,stat64,exit_group %s' %
-        (outfile, cmd))
+    trace_command = ['strace',
+                     '-f', '-o', '-q', '-e', 'trace=file',
+                     '-o', outfile,
+                     '--']
+    trace_command.extend(cmd)
+    status = subprocess.call(trace_command)
     output = open(outfile).readlines()
     os.remove(outfile)
 
@@ -74,23 +104,20 @@ def generate_deps(cmd):
     files = []
     files_dict = {}
     for line in output:
-        match1 = re.match(r'.*open\("(.*)", .*', line)
-        match2 = re.match(r'.*stat64\("(.*)", .*', line)
+        match = re.match(strace_re, line)
 
-        if match1:
-            match = match1
-        else:
-            match = match2
-        if match:
-            fname = os.path.normpath(match.group(1))
-            if (is_relevant(fname) and os.path.isfile(fname)
-                    and fname not in files_dict):
-                files.append((fname, md5sum(fname), modtime(fname)))
-                files_dict[fname] = True
+        if not match:
+            print("WARNING: failed to parse this line: " + line.rstrip("\n"),
+                  file=sys.stderr)
+            continue
+        if not match.group("filename"):
+            continue
 
-        match = re.match(r'.*exit_group\((.*)\).*', line)
-        if match:
-            status = int(match.group(1))
+        fname = os.path.normpath(match.group("filename"))
+        if (is_relevant(fname) and os.path.isfile(fname)
+                and fname not in files_dict):
+            files.append((fname, md5sum(fname), modtime(fname)))
+            files_dict[fname] = True
 
     return (status, files)
 
@@ -125,7 +152,7 @@ def memoize_with_deps(depsname, deps, cmd):
             del deps[cmd]
         write_deps(depsname, deps)
         return status
-    print 'up to date:', cmd
+    print('up to date:', cmd)
     return 0
 
 
@@ -139,7 +166,7 @@ def memoize(cmd):
 
 if __name__ == '__main__':
     (opts, cmd) = getopt(sys.argv[1:], 'td:')
-    cmd = ' '.join(cmd)
+    cmd = tuple(cmd)
     for (opt, value) in opts:
         if opt == '-t':
             opt_use_modtime = True
