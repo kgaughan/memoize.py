@@ -12,14 +12,23 @@ import sys
 import tempfile
 
 
+# If set, use modification time instead of MD5-sum as check
 opt_use_modtime = False
 opt_dirs = ['.']
+
+
+SYS_CALLS = [
+    "execve",
+    "open", "openat", "access",
+    "stat", "stat64", "lstat", "statfs",
+]
+
 
 strace_re = re.compile(r"""
   (?: (?P<pid> \d+ ) \s+ ) ?
   (?:
       # Relevant syscalls
-      (?P<syscall> execve | access | open | stat | stat64 | lstat )
+      (?P<syscall>""" + "|".join(SYS_CALLS) + r""")
       \( "
       (?P<filename> (?: \\" | [^"] )* )
       "
@@ -91,8 +100,11 @@ def generate_deps(cmd):
     print('running', cmd)
 
     outfile = tempfile.mktemp()
+    # TODO: Detect solaris and use truss instead and verify parsing of its
+    # output format
     trace_command = ['strace',
-                     '-f', '-o', '-q', '-e', 'trace=file',
+                     '-f', '-q',
+                     '-e', 'trace=' + ','.join(SYS_CALLS),
                      '-o', outfile,
                      '--']
     trace_command.extend(cmd)
