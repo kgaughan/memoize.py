@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
-
+import argparse
 import cPickle
-import getopt
 import hashlib
+import logging
 import os
 import os.path
 import re
@@ -12,10 +11,13 @@ import subprocess
 import sys
 import tempfile
 
+from six.moves import shlex_quote
+
 
 # If set, use modification time instead of MD5-sum as check
 opt_use_modtime = False
 opt_dirs = ['.']
+hasher = hashlib.md5
 
 
 SYS_CALLS = [
@@ -35,7 +37,7 @@ strace_re = re.compile(r"""
       "
   |
       # Irrelevant syscalls
-      (?: utimensat )
+      (?: utimensat | statfs | mkdir )
       \(
   |
       # A continuation line
@@ -60,12 +62,11 @@ def add_relevant_dir(d):
     opt_dirs.append(d)
 
 
-def md5sum(fname):
-    try:
-        with open(fname, 'rb') as fh:
-            return hashlib.md5(fh.read()).hexdigest()
-    except:
-        return 'bad'
+def hashsum(fname):
+    if not os.path.isfile(fname):
+        return None
+    with open(fname, 'rb') as fh:
+        return hasher(fh.read()).digest()
 
 
 def modtime(fname):
@@ -76,8 +77,11 @@ def modtime(fname):
 
 
 def files_up_to_date(files, test):
-    return all(test(fname) != value
-               for fname, value in files.iteritems())
+    for fname, value in files.iteritems():
+        if test(fname) != value:
+            logging.debug("Not up to date: %s", shlex_quote(fname))
+            return False
+    return True
 
 
 def is_relevant(fname):
@@ -86,10 +90,15 @@ def is_relevant(fname):
                for d in opt_dirs)
 
 
-def generate_deps(cmd, test):
-    print('running', cmd)
+def cmd_to_str(cmd):
+    return " ".join(shlex_quote(arg) for arg in cmd)
 
-    outfile = tempfile.mktemp()
+
+def generate_deps(cmd, test):
+    logging.info('Running: %s', cmd_to_str(cmd))
+
+    outfile = os.path.join(tempfile.mkdtemp(), "pipe")
+    os.mkfifo(outfile)
     # TODO: Detect solaris and use truss instead and verify parsing of its
     # output format
     trace_command = ['strace',
@@ -98,23 +107,24 @@ def generate_deps(cmd, test):
                      '-o', outfile,
                      '--']
     trace_command.extend(cmd)
-    status = subprocess.call(trace_command)
-    output = open(outfile).readlines()
-    os.remove(outfile)
+    p = subprocess.Popen(trace_command)
 
     files = {}
-    for line in output:
+    for line in open(outfile):
         match = re.match(strace_re, line)
 
         if not match:
-            print("WARNING: failed to parse this line: " + line.rstrip("\n"),
-                  file=sys.stderr)
+            logging.warning("Failed to parse this line: %s",
+                            line.rstrip("\n"))
             continue
         if match.group("filename"):
             fname = os.path.normpath(match.group("filename"))
             if (fname not in files and os.path.isfile(fname) and
                     is_relevant(fname)):
                 files[fname] = test(fname)
+
+    status = p.wait()
+    os.remove(outfile)
 
     return (status, files)
 
@@ -133,9 +143,9 @@ def write_deps(fname, deps):
 
 
 def memoize_with_deps(depsname, deps, cmd):
-    files = deps.get(cmd, [('aaa', '')])
-    test = modtime if opt_use_modtime else md5sum
-    if not files_up_to_date(files, test):
+    files = deps.get(cmd)
+    test = modtime if opt_use_modtime else hashsum
+    if not files or not files_up_to_date(files, test):
         status, files = generate_deps(cmd, test)
         if status == 0:
             deps[cmd] = files
@@ -143,7 +153,7 @@ def memoize_with_deps(depsname, deps, cmd):
             del deps[cmd]
         write_deps(depsname, deps)
         return status
-    print('up to date:', cmd)
+    logging.info('Up to date: %s', cmd_to_str(cmd))
     return 0
 
 
@@ -152,13 +162,25 @@ def memoize(cmd, depsname='.deps'):
 
 
 def main():
-    opts, cmd = getopt.getopt(sys.argv[1:], 'td:')
-    cmd = tuple(cmd)
-    for opt, value in opts:
-        if opt == '-t':
-            set_use_modtime(True)
-        elif opt == '-d':
-            add_relevant_dir(value)
+    parser = argparse.ArgumentParser(
+        description="Record a command's dependencies, skip if they did not change")
+    parser.add_argument("command", nargs='+', help='The command to run')
+    parser.add_argument("--use-hash", action='store_true')
+    parser.add_argument("--no-use-hash", dest='use_hash', action='store_false')
+    parser.add_argument("-d", "--relevant-dir", action='append', default=[])
+    parser.add_argument("--verbose", action='store_true')
+    parser.add_argument("--debug", action='store_true')
+    parser.set_defaults(use_hash=True)
+
+    args = parser.parse_args()
+
+    cmd = tuple(args.command)
+    set_use_modtime(not args.use_hash)
+    add_relevant_dir(args.relevant_dir)
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    elif args.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     return memoize(cmd)
 
