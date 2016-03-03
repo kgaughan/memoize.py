@@ -176,7 +176,8 @@ def main():
 
     cmd = tuple(args.command)
     set_use_modtime(not args.use_hash)
-    add_relevant_dir(args.relevant_dir)
+    for relevant_dir in args.relevant_dir:
+        add_relevant_dir(relevant_dir)
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     elif args.verbose:
