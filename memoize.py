@@ -23,7 +23,7 @@ hasher = hashlib.md5
 SYS_CALLS = [
     "execve",
     "open", "openat", "access",
-    "stat", "stat64", "lstat", "statfs",
+    "stat", "stat64", "lstat",
 ]
 
 
