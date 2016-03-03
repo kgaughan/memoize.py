@@ -3,6 +3,10 @@ Original at http://www.eecs.berkeley.edu/~billm/memoize.html
 For the first commit, which includes the pristine script without any
 modernisations, see: https://github.com/kgaughan/memoize.py/tree/classic
 
+You might also be interested in fabricate__, which was inspired by memoize.
+
+.. __: https://github.com/SimonAlfie/fabricate
+
 =======
 Memoize
 =======
