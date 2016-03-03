@@ -75,15 +75,9 @@ def modtime(fname):
         return 'bad'
 
 
-def files_up_to_date(files):
-    for fname, md5, mtime in files:
-        if opt_use_modtime:
-            if modtime(fname) != mtime:
-                return False
-        else:
-            if md5sum(fname) != md5:
-                return False
-    return True
+def files_up_to_date(files, test):
+    return all(test(fname) != value
+               for fname, value in files.iteritems())
 
 
 def is_relevant(fname):
@@ -92,7 +86,7 @@ def is_relevant(fname):
                for d in opt_dirs)
 
 
-def generate_deps(cmd):
+def generate_deps(cmd, test):
     print('running', cmd)
 
     outfile = tempfile.mktemp()
@@ -108,8 +102,7 @@ def generate_deps(cmd):
     output = open(outfile).readlines()
     os.remove(outfile)
 
-    files = []
-    files_dict = {}
+    files = {}
     for line in output:
         match = re.match(strace_re, line)
 
@@ -117,14 +110,11 @@ def generate_deps(cmd):
             print("WARNING: failed to parse this line: " + line.rstrip("\n"),
                   file=sys.stderr)
             continue
-        if not match.group("filename"):
-            continue
-
-        fname = os.path.normpath(match.group("filename"))
-        if (is_relevant(fname) and os.path.isfile(fname) and
-                fname not in files_dict):
-            files.append((fname, md5sum(fname), modtime(fname)))
-            files_dict[fname] = True
+        if match.group("filename"):
+            fname = os.path.normpath(match.group("filename"))
+            if (fname not in files and os.path.isfile(fname) and
+                    is_relevant(fname)):
+                files[fname] = test(fname)
 
     return (status, files)
 
@@ -143,9 +133,10 @@ def write_deps(fname, deps):
 
 
 def memoize_with_deps(depsname, deps, cmd):
-    files = deps.get(cmd, [('aaa', '', '')])
-    if not files_up_to_date(files):
-        status, files = generate_deps(cmd)
+    files = deps.get(cmd, [('aaa', '')])
+    test = modtime if opt_use_modtime else md5sum
+    if not files_up_to_date(files, test):
+        status, files = generate_deps(cmd, test)
         if status == 0:
             deps[cmd] = files
         elif cmd in deps:
