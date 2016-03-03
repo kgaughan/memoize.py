@@ -160,14 +160,17 @@ def memoize(cmd, depsname='.deps'):
     return memoize_with_deps(depsname, read_deps(depsname), cmd)
 
 
-if __name__ == '__main__':
+def main():
     opts, cmd = getopt.getopt(sys.argv[1:], 'td:')
     cmd = tuple(cmd)
-    for (opt, value) in opts:
+    for opt, value in opts:
         if opt == '-t':
-            opt_use_modtime = True
+            set_use_modtime(True)
         elif opt == '-d':
-            opt_dirs.append(value)
+            add_relevant_dir(value)
 
-    status = memoize(cmd)
-    sys.exit(status)
+    return memoize(cmd)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
