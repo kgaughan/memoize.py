@@ -117,8 +117,8 @@ def generate_deps(cmd, test):
             logging.warning("Failed to parse this line: %s",
                             line.rstrip("\n"))
             continue
-        if match.group("filename"):
-            fname = os.path.normpath(match.group("filename"))
+        if match["filename"]:
+            fname = os.path.normpath(match["filename"])
             if (fname not in files and os.path.isfile(fname) and
                     is_relevant(fname)):
                 files[fname] = test(fname)

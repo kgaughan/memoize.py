@@ -24,37 +24,36 @@ def mlfile(fname):
     (dir, prefix) = os.path.split(base)
 
     if suffix == 'mli':
-        obj = 'obj/' + prefix + '.cmi'
-        run('ocamlc -c -I obj -o %s %s' % (obj, fname))
+        obj = f'obj/{prefix}.cmi'
+        run(f'ocamlc -c -I obj -o {obj} {fname}')
         if doclean:
             objs.append(obj)
     elif suffix == 'ml':
         if doopt:
-            obj = 'obj/' + prefix + '.cmx'
-            run('ocamlopt -c -I obj -o %s %s' % (obj, fname))
+            obj = f'obj/{prefix}.cmx'
+            run(f'ocamlopt -c -I obj -o {obj} {fname}')
         else:
-            obj = 'obj/' + prefix + '.cmo'
-            run('ocamlc -c -I obj -o %s %s' % (obj, fname))
+            obj = f'obj/{prefix}.cmo'
+            run(f'ocamlc -c -I obj -o {obj} {fname}')
         objs.append(obj)
-    else:
-        if not doclean:
-            objs.append(fname)
+    elif not doclean:
+        objs.append(fname)
 
 
 def elkfile(fname):
-    mlfile('elkhoundlib/' + fname)
+    mlfile(f'elkhoundlib/{fname}')
 
 
 def libfile(libname):
     if doopt:
-        mlfile(libname + '.cmxa')
+        mlfile(f'{libname}.cmxa')
     else:
-        mlfile(libname + '.cma')
+        mlfile(f'{libname}.cma')
 
 
 def clean(files):
-    print 'rm -f', files
-    os.system('rm -f ' + files)
+    def clean(files):
+    os.system(f'rm -f {files}')
 
 
 def build(opt, cln):
